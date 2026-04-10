@@ -1,29 +1,29 @@
 # IsaacLab Reward Autotuning: Flamingo Project
 
-이 프로젝트는 NVIDIA Isaac Lab을 기반으로 로봇의 보상 함수 자동 튜닝 및 강화 학습을 수행하기 위한 프레임워크입니다.
+This project is a framework for **Reward Function Autotuning** and **Reinforcement Learning** (RL) based on NVIDIA Isaac Lab. It supports various task configurations such as `manager_based`, `moo_based`, and `constraint_based`, and includes tools for Constrained Reinforcement Learning (CO-RL).
 
 ## 🛠️ Installation
 
-본 프로젝트는 Isaac Lab 환경에서 동작합니다. 먼저 Isaac Lab이 설치되어 있어야 합니다.
+This project requires an existing installation of Isaac Lab.
 
-1. **Isaac Lab 설치**: [Isaac Lab 공식 설치 가이드](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html)를 따라 `env_isaaclab` 콘다 환경을 구축하세요.
-2. **프로젝트 복제 및 패키지 설치**:
+1. **Install Isaac Lab**: Follow the [Isaac Lab Installation Guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html) to set up your `env_isaaclab` conda environment.
+2. **Clone the Repository & Install Package**:
    ```bash
-   git clone <YOUR_GITHUB_REPO_URL>
+   git clone https://github.com/JJUNE0/isaaclab_add_reward_autotuning.git
    cd isaaclab_add_reward_autotuning
    pip install -e .
-   # 또는 uv 사용 시
+   # Or using uv
    uv pip install -e .
    ```
-3. **환경 설정 (PYTHONPATH)**:
-   로컬 IsaacLab 익스텐션을 인식하기 위해 경로를 추가합니다.
+3. **Environment Setup (PYTHONPATH)**:
+   Add the local IsaacLab extensions to your python path:
    ```bash
    export PYTHONPATH=$PYTHONPATH:$(pwd)/lab/flamingo/isaaclab
    ```
 
 ## 🚀 Usage (Execution Commands)
 
-`launch.json`에 설정된 주요 실행 명령어들입니다. 상황에 맞춰 터미널에서 실행하세요.
+Below are the primary execution commands based on the `launch.json` configurations.
 
 ### 1. Multi-Objective Optimization (MOO) - Rough Terrain
 *   **Train**:
@@ -50,11 +50,12 @@
     ```
 
 ## 📂 Project Structure
-- `lab/flamingo`: Isaac Lab 익스텐션 (로봇 자산, 태스크 정의)
-- `scripts/co_rl`: CO-RL 알고리즘 및 학습 실행 스크립트
-- `pyproject.toml`: 프로젝트 패키지 설정 및 의존성 관리
+- `lab/flamingo`: Isaac Lab extension (Robot assets, sensor configs, and task definitions)
+- `scripts/co_rl`: CO-RL algorithm implementations and execution scripts
+- `pyproject.toml`: Project package configuration and dependency management
 
-## 📝 Features
-- Multi-Objective Optimization (MOO) 기반 보상 자동 튜닝
-- Teacher-Student 학습 구조 (RMA) 지원
-- 다양한 로봇 설정 (Flamingo, A1, Humanoid 등) 지원
+## 📝 Key Features
+- **Reward Autotuning**: Based on Multi-Objective Optimization (MOO)
+- **RMA Support**: Robust Teacher-Student learning architecture
+- **Robot Assets**: Configurations for Flamingo, A1, Humanoid, and more
+- **Task Management**: Supports Manager-based, MOO-based, and Constraint-based envs

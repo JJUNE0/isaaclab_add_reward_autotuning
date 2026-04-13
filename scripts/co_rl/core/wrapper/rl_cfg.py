@@ -155,9 +155,15 @@ class ADDCfg:
     disc_learning_rate : float = MISSING   
     
     enable_reward_norm : bool = MISSING
-    
+
     reward_norm_momentum : float = MISSING
-    
+
+    w_pot : float = 0.0
+
+    w_disc : float = 0.2
+
+    w_fm : float = 0.8
+
 
 @configclass
 class CoRlMooPpoAlgorithmCfg:

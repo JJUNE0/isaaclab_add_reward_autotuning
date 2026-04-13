@@ -207,7 +207,7 @@ class DistillationRolloutStorage:
                 dones = self.dones.squeeze(-1)
                 last_was_done = torch.zeros_like(dones, dtype=torch.bool)
                 last_was_done[1:] = dones[:-1]
-                last_was_done[0] = Tr
+                last_was_done[0] = True
                 trajectories_batch_size = torch.sum(last_was_done[:, start:stop])
                 last_traj = first_traj + trajectories_batch_size
 

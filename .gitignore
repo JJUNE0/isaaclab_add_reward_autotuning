@@ -5,3 +5,6 @@ logs/
 outputs/
 wandb/
 *.usd
+
+# cosim-analyze (sim2sim framework, external)
+cosim-anaylze/

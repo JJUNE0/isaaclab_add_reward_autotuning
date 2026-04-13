@@ -31,7 +31,7 @@ FLAMINGO_WHEEL_ACTUATOR_KAN_CFG = ActuatorNetKANCfg(
 
 FLAMINGO_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{FLAMINGO_ASSETS_DATA_DIR}/Robots/Flamingo/flamingo_rev03_2_3/flamingo_rev03_2_3.usd",
+        usd_path=f"{FLAMINGO_ASSETS_DATA_DIR}/Robots/Flamingo/flamingo_rev03_0_1/flamingo_rev03_0_1_merge_joints.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -48,7 +48,7 @@ FLAMINGO_CFG = ArticulationCfg(
     ),
     
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.451),  # default: 0.61282
+        pos=(0.0, 0.0, 0.64148),  # default: 0.61282
         joint_pos={ 
             "left_hip_joint": 0.0,
             "left_shoulder_joint": 0.0,
@@ -88,10 +88,10 @@ FLAMINGO_CFG = ArticulationCfg(
         ),
         "joints_l": GearDelayedPDActuatorCfg(
             joint_names_expr=[".*_leg_joint"],
-            effort_limit=90.0,
-            velocity_limit=13.0,
+            effort_limit=60.0,
+            velocity_limit=20.0,
             gear_ratio=-1.5,
-            gamma=1.0,
+            gamma=0.98,
             min_delay=0,  # physics time steps (min: 5.0 * 0 = 0.0ms)
             max_delay=4,  # physics time steps (max: 5.0 * 4 = 20.0ms)
             stiffness={
@@ -110,13 +110,13 @@ FLAMINGO_CFG = ArticulationCfg(
         "wheels": DelayedPDActuatorCfg(
             joint_names_expr=[".*_wheel_joint"],
             effort_limit=36.0,
-            velocity_limit=50.0,
+            velocity_limit=53.0,
             min_delay=0,  # physics time steps (min: 5.0 * 0 = 0.0ms)
             max_delay=4,  # physics time steps (max: 5.0 * 4 = 20.0ms)
             stiffness={
                 ".*_wheel_joint": 0.0,
             },
-            damping={".*_wheel_joint": 0.7},
+            damping={".*_wheel_joint": 0.5},
             friction={
                 ".*_wheel_joint": 0.0,
             },

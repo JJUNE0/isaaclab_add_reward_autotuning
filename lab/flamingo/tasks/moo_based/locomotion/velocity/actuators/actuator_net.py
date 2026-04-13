@@ -48,11 +48,6 @@ class ActuatorNetLSTM(BaseActuatorNetLSTM):
                 self.sea_input, (self.sea_hidden_state, self.sea_cell_state)
             )
 
-        # run network inference
-        with torch.inference_mode():
-            torques, (self.sea_hidden_state[:], self.sea_cell_state[:]) = self.network(
-                self.sea_input, (self.sea_hidden_state, self.sea_cell_state)
-            )
         self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
 
         # clip the computed effort based on the motor limits

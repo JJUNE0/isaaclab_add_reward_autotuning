@@ -221,9 +221,13 @@ class RMAStudent(ActorCritic):
         
         return action_mean, z_hat
         
+    def update_distribution(self, action_mean):
+        """action_mean을 직접 분포의 mean으로 사용 (actor를 다시 실행하지 않음)"""
+        self.distribution = torch.distributions.Normal(action_mean, action_mean * 0.0 + self.std)
+
     def act(self, obs=None, **kwargs):
         """ Rollout Mode """
-        action_mean, _ = self.forward() 
+        action_mean, _ = self.forward()
         self.update_distribution(action_mean)
         return self.distribution.sample()
         

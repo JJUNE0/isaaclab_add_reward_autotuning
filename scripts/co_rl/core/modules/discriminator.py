@@ -188,13 +188,18 @@ class DiscriminatorGRU(DiscriminatorBase): # <- nn.Module 대신 DiscriminatorBa
         self.gru = nn.GRU(input_size=in_dim, hidden_size=hidden_dims[0], num_layers=num_layers, batch_first=True)
         self.head = nn.Linear(hidden_dims[0], 1)
 
-    def forward(self, x_seq: torch.Tensor) -> torch.Tensor:
-        # x_seq: (N, T, D)
+    def forward(self, x_seq: torch.Tensor, obs: torch.Tensor = None) -> torch.Tensor:
+        # x_seq: (N, T, D) — obs는 인터페이스 통일을 위해 받지만 GRU에서는 사용하지 않음
         out, _ = self.gru(x_seq)            # (N, T, H)
         h_last = out[:, -1]                 # (N, H)
         # self.head가 (H, 1)을 출력하므로 (N, 1)이 됨.
         # .unsqueeze(-1)는 불필요하며 (N, 1, 1)을 만들어 BCE Loss와 충돌할 수 있습니다.
         return self.head(h_last)            # (N, 1) 반환
+
+    def extract_features(self, x_seq: torch.Tensor, obs: torch.Tensor = None) -> torch.Tensor:
+        """GRU의 마지막 hidden state를 feature로 반환"""
+        out, _ = self.gru(x_seq)  # (N, T, H)
+        return out[:, -1]          # (N, H)
 
 # import torch
 # import torch.nn as nn

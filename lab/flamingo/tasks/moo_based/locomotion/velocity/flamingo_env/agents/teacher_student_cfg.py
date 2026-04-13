@@ -54,5 +54,5 @@ class FlamingoRMAStudentRunnerCfg(FlamingoMOOPPORunnerCfg):
         self.use_rma_student = True
         
         self.policy = RMAStudentActorCriticCfg(
-            teacher_checkpoint_path="logs/co_rl/Flamingo_RMA_Teacher/mooppo/2026-01-26_11-42-03/model_8100.pt"
+            teacher_checkpoint_path="logs/co_rl/Flamingo_RMA_Teacher/mooppo/2026-04-11_20-04-28/model_9999.pt"
         )

@@ -198,7 +198,7 @@ class ObservationsCfg:
             params={
                 "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_shoulder_joint", ".*_wheel_joint"])
             },
-            scale=0.15,
+            scale=0.05,
         )
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel_link, noise=Unoise(n_min=-0.15, n_max=0.15), scale=0.25)  # default: -0.15
         base_projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))  # default: -0.05

@@ -48,6 +48,11 @@ class MOORewardManager(RewardManager):
         self._delta_norm : Optional[DiffNormalizer] = None
         self._reward_ema : Optional[EMA] = None
 
+        # Hybrid reward weights (configurable via set())
+        self.w_pot: float = 0.0
+        self.w_disc: float = 0.2
+        self.w_fm: float = 0.8
+
 
         if self.mode == "motion":
             self._delta_hist_buf = torch.zeros((self.num_envs, self.window_size, self.feature_dim),
@@ -56,18 +61,24 @@ class MOORewardManager(RewardManager):
         self._term_names = ["total_moo_reward"]
         self._step_reward = torch.zeros((self.num_envs, 1), dtype=torch.float, device=self.device)
         
-    def set(self, 
+    def set(self,
             discriminator: nn.Module,
-            delta_normalizer : DiffNormalizer,
-            reward_ema : EMA,
-            enable_reward_norm 
+            delta_normalizer: DiffNormalizer,
+            reward_ema: EMA,
+            enable_reward_norm,
+            w_pot: float = 0.0,
+            w_disc: float = 0.2,
+            w_fm: float = 0.8,
             ):
-        
+
         self._discriminator = discriminator
         self._delta_norm = delta_normalizer
         self._reward_ema = reward_ema
         self._enable_reward_norm = enable_reward_norm
-        
+        self.w_pot = w_pot
+        self.w_disc = w_disc
+        self.w_fm = w_fm
+
         print(f"[MOORewardManager] Learning components (D, Norm, EMA) successfully set by Agent.")
     
     def _prepare_terms(self):
@@ -227,19 +238,16 @@ class MOORewardManager(RewardManager):
             reward_fm = torch.exp(-torch.norm(feat_policy - feat_expert, dim=1) / self.sigma)
             reward_disc = -torch.log(torch.clamp(1.0 - prob, min=1e-6))
             
+            # Potential은 curriculum 지표용으로 항상 계산 (논문 Eq.5)
             if self.mode == "nonmotion":
                 U = 0.5 * (self._delta_buf ** 2).mean(dim=1)
             else:
                 seq_raw = self._delta_buf.view(self.num_envs, self.window_size, self.feature_dim)
                 U = 0.5 * (seq_raw ** 2).mean(dim=(1, 2))
-
             reward_pot = torch.exp(-self.alpha * U)
-            
-            w_pot = 0.0
-            w_disc = 0.2
-            w_fm = 0.8
-        
-            reward_raw = w_pot * reward_pot + w_disc * reward_disc + w_fm * reward_fm
+
+            # reward에는 w_pot > 0일 때만 gradient 반영
+            reward_raw = self.w_pot * reward_pot + self.w_disc * reward_disc + self.w_fm * reward_fm
         
         if self._enable_reward_norm:
             self._reward_ema.update(reward_raw.detach())

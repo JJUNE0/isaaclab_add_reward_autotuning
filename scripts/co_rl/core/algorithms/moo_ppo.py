@@ -105,16 +105,19 @@ class MOOPPO:
         self.delta_normalizer = DiffNormalizer(self.delta_dim, device=self.device)
         
         self.enable_reward_norm = add_cfg["enable_reward_norm"]
-        
+
         self.reward_ema = EMA(momentum=add_cfg["reward_norm_momentum"], device=self.device)
-        
+
         self.target_delta = torch.zeros((1, self.delta_dim), device=self.device)
-        
+
         self.moo_manager.set(
             discriminator=self.discriminator,
             delta_normalizer=self.delta_normalizer,
             reward_ema=self.reward_ema,
-            enable_reward_norm = self.enable_reward_norm
+            enable_reward_norm=self.enable_reward_norm,
+            w_pot=add_cfg.get("w_pot", 0.0),
+            w_disc=add_cfg.get("w_disc", 0.2),
+            w_fm=add_cfg.get("w_fm", 0.8),
         )
         
         self.disc_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.disc_learning_rate)

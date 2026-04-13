@@ -45,7 +45,7 @@ class DomainManager(EventManager):
         
         # 4. Calculate Step Size (rho) based on Dimensions
         self.param_dim = self._count_uncertainty_dims(self.max_params)
-        self.rho = math.exp(cfg.kappa / max(self.param_dim, 1)) - 1.0
+        self.rho = math.exp(cfg.kappa / math.sqrt(max(self.param_dim, 1))) - 1.0
 
         # 5. Running Statistics for Gate
         self.gate_window = cfg.gate_window
@@ -283,21 +283,14 @@ class DomainManager(EventManager):
                     term_cfg.params.update(new_params)
 
     def _capture_max_params(self):
-        target_terms = [
-            "randomize_mass", 
-            "randomize_com", 
-            "randomize_gains", 
-            "randomize_joints", 
-            "randomize_friction", 
-            "randomize_base_mass"
-        ]
-        
-        for term_name in target_terms:
-            if hasattr(self.cfg, term_name):
-                term_cfg = getattr(self.cfg, term_name)
-                # Check instance to be safe
-                if isinstance(term_cfg, EventTermCfg) and hasattr(term_cfg, "params") and term_cfg.params:
-                    self.max_params[term_name] = deepcopy(term_cfg.params)
+        if isinstance(self.cfg, dict):
+            cfg_items = self.cfg.items()
+        else:
+            cfg_items = self.cfg.__dict__.items()
+
+        for term_name, term_cfg in cfg_items:
+            if isinstance(term_cfg, EventTermCfg) and hasattr(term_cfg, "params") and term_cfg.params:
+                self.max_params[term_name] = deepcopy(term_cfg.params)
 
     def _count_uncertainty_dims(self, max_params: dict) -> int:
         d = 0

@@ -222,20 +222,20 @@ class ObservationsCfg:
         )
         hip_shoulder_joint_vel = ObsTerm(
             func=mdp.joint_vel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_joint", ".*_shoulder_joint"])},            
-            scale=0.15,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_joint", ".*_shoulder_joint"])},
+            scale=0.05,
             noise=Unoise(n_min=-1.5, n_max=1.5),
         )
         joint_vel = ObsTerm(
-            func=mdp.joint_vel_leg_gear, 
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_leg_joint"]), "gear_ratio": -1.5},            
-            scale=0.15,
+            func=mdp.joint_vel_leg_gear,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_leg_joint"]), "gear_ratio": -1.5},
+            scale=0.05,
             noise=Unoise(n_min=-1.5, n_max=1.5),
         )
         wheel_joint_vel = ObsTerm(
             func=mdp.joint_vel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_wheel_joint"])},            
-            scale=0.15,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_wheel_joint"])},
+            scale=0.05,
             noise=Unoise(n_min=-1.5, n_max=1.5),
         )
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel_link, noise=Unoise(n_min=-0.15, n_max=0.15), scale=0.25)
@@ -251,7 +251,7 @@ class ObservationsCfg:
         """[Current] 현재 시점 정보 (Blind)"""
         velocity_commands = ObsTerm(
             func=mdp.generated_scaled_commands, 
-            params={"command_name": "base_velocity", "scale": (2.0, 0.0, 0.25)}
+            params={"command_name": "base_velocity", "scale": (2.0, 1.0, 0.25)}
         )
         event_commands = ObsTerm(func=mdp.generated_partial_commands, params={"command_name": "event"})
         

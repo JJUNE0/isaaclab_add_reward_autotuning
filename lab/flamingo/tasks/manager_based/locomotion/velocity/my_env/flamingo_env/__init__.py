@@ -8,7 +8,6 @@ import gymnasium as gym
 from . import (
     agents,
     flat_env,
-    rough_env,
     diffusion_env,
 )
 

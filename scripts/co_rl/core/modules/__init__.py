@@ -8,6 +8,8 @@ from .actor_critic_recurrent import ActorCriticRecurrent
 from .normalizer import EmpiricalNormalization
 from .discriminator import DiscriminatorMLP, DiscriminatorGRU
 from .teacher_student import RMATeacher, RMAStudent
+from .rma_multi_head_student import RMAStudentMultiHead
+from .actor_critic_with_estimator import ActorCriticWithEstimator
 
 
 from .demo.replay_memory import ReplayMemory, TACOReplayMemory

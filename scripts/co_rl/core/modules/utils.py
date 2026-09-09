@@ -12,10 +12,11 @@ class DiffNormalizer(nn.Module):
     [수정] nn.Module을 상속받아 state_dict 저장/로드를 지원합니다.
     """
 
-    def __init__(self, dim: int, device: torch.device, eps: float = 0.1):
+    def __init__(self, dim: int, device: torch.device, eps: float = 0.1, momentum: float = 0.99):
         super().__init__()
         self.dim = dim
         self.eps = eps
+        self.momentum = momentum
 
         # [핵심] register_buffer로 등록하면 state_dict에 자동으로 저장/로드됩니다.
         # 또한 model.to(device) 호출 시 자동으로 따라갑니다.
@@ -24,16 +25,14 @@ class DiffNormalizer(nn.Module):
 
     @torch.no_grad()
     def record(self, delta: torch.Tensor):
-        """입력된 Δ 샘플들의 절댓값 평균을 누적"""
+        """입력된 Δ 샘플들의 절댓값 평균을 EMA로 갱신"""
         batch_mean = delta.abs().mean(dim=0)
-        
+
         if self.count == 0:
             self.mean_abs.copy_(batch_mean)
         else:
-            # EMA 방식 또는 누적 평균 방식
-            new_mean = (self.mean_abs * self.count + batch_mean) / (self.count + 1)
-            self.mean_abs.copy_(new_mean)
-            
+            self.mean_abs.mul_(self.momentum).add_(batch_mean, alpha=1.0 - self.momentum)
+
         self.count += 1
 
     @torch.no_grad()

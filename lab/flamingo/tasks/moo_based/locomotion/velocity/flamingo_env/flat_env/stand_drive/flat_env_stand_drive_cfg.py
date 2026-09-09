@@ -142,9 +142,11 @@ class FlamingoFlatEnvCfg(LocomotionVelocityFlatEnvCfg):
         #! ********************************************************* !#
 
         
-        self.observations.priv_extrio.is_discrete_terrain = None        
+        self.observations.priv_extrio.is_discrete_terrain = None
         self.commands.integral_position = None
         self.observations.priv_extrio.position_commands = None
+        self.observations.priv_extrio.height_scan = None
+        self.observations.none_stack_policy.event_commands = None
 
         #! ********************************************************* !#
 

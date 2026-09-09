@@ -64,6 +64,16 @@ class UniformVelocityWithZCommand(UniformVelocityCommand):
         is_initial_phase = (self.time_elapsed <= self.cfg.initial_phase_time)
         mask = is_initial_phase.unsqueeze(-1)
         vel_command_b = torch.where(mask, self.zero_command_b, self.vel_command_b)
+        # Height (index 3) is exempt from the initial-phase mask: only the velocity channels
+        # (0:3) are zeroed during init-phase. Forcing height to literal 0.0 here left it out
+        # of sync with the reward's own init-phase fallback (feature_functions_common.
+        # _init_phase_safe_height, which substitutes a natural default instead of chasing
+        # height=0) -- and, now that the observation is height-normalized (roughly [-1,1]),
+        # a raw 0.0 maps to a wild outlier (~-4.3) far outside the trained range, which is
+        # worse than the original mismatch. Keep the actual per-env sampled height target
+        # visible throughout.
+        vel_command_b = vel_command_b.clone()
+        vel_command_b[:, 3] = self.vel_command_b[:, 3]
         return vel_command_b
 
     def _update_metrics(self):

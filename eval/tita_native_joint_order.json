@@ -1,0 +1,13 @@
+{
+  "task": "Isaac-Velocity-Flat-Tita-Play-v3-moo-ppo",
+  "joint_names": [
+    "joint_left_leg_1",
+    "joint_right_leg_1",
+    "joint_left_leg_2",
+    "joint_right_leg_2",
+    "joint_left_leg_3",
+    "joint_right_leg_3",
+    "joint_left_leg_4",
+    "joint_right_leg_4"
+  ]
+}

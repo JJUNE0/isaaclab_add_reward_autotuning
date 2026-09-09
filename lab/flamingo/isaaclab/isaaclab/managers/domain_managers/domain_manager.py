@@ -202,6 +202,42 @@ class DomainManager(EventManager):
         )
 
         self._apply_curriculum()
+
+        # Log exact newly applied sampling ranges
+        current_ranges = {}
+        rprint(f"[DomainManager] 📊 Active Sampling Ranges at Level {self.difficulty_level:.4f}:")
+        for term_name in self.max_params.keys():
+            if hasattr(self.cfg, term_name):
+                term_params = getattr(self.cfg, term_name).params
+                current_ranges[term_name] = str(term_params)
+                rprint(f"  - {term_name}: {term_params}")
+
+        # Persist upgrade event to JSON log
+        import json
+        import os
+        from datetime import datetime
+        log_record = {
+            "timestamp": datetime.now().isoformat(),
+            "old_level": old_level,
+            "new_level": self.difficulty_level,
+            "gate_mean": current_mu,
+            "target_score": self.target_score,
+            "confidence": confidence,
+            "sampling_ranges": current_ranges,
+        }
+
+        log_paths = ["/tmp/domain_curriculum_upgrade_history.json"]
+        docs_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..", "..", "docs", "exp"))
+        if os.path.exists(docs_dir):
+            log_paths.append(os.path.join(docs_dir, "domain_curriculum_history.json"))
+
+        for path in log_paths:
+            try:
+                with open(path, "a") as f:
+                    f.write(json.dumps(log_record) + "\n")
+            except Exception:
+                pass
+
         self._gate_buf.clear()
 
     def _bayes_confidence_mu_gt_delta(self, target: float) -> tuple[float, float]:

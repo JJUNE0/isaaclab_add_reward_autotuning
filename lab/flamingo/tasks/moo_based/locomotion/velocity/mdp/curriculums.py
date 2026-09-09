@@ -74,6 +74,38 @@ def modify_base_velocity_range(
 
 
 
+def linearly_widen_command_range(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    term_name: str,
+    key: str,
+    start_range: tuple[float, float],
+    end_range: tuple[float, float],
+    start_step: int,
+    end_step: int,
+):
+    """Linearly interpolate one command range key from `start_range` to
+    `end_range` as `env.common_step_counter` goes from `start_step` to
+    `end_step` (held at start_range before start_step, end_range after
+    end_step). Unlike `modify_base_velocity_range` (a one-shot switch at a
+    single step threshold), this ramps gradually to avoid a sudden
+    distribution shift at the switch point."""
+    step = env.common_step_counter
+    if step <= start_step:
+        t = 0.0
+    elif step >= end_step:
+        t = 1.0
+    else:
+        t = (step - start_step) / (end_step - start_step)
+
+    lo = start_range[0] + (end_range[0] - start_range[0]) * t
+    hi = start_range[1] + (end_range[1] - start_range[1]) * t
+
+    command_term = env.command_manager.get_term(term_name)
+    if hasattr(command_term.cfg.ranges, key):
+        setattr(command_term.cfg.ranges, key, (lo, hi))
+
+
 def modify_terminataton_condition(
     env: ManagerBasedRLEnv, env_ids: Sequence[int], term_name: str, link_name: list, num_steps: int
 ):

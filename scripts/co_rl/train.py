@@ -6,8 +6,10 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 import sys
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 # local imports
 import cli_args  # isort: skip
@@ -30,10 +32,36 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 parser.add_argument("--experiment_description", type=str, default=None, help="Description of the experiment.")
 parser.add_argument("--num_policy_stacks", type=int, default=None, help="Number of policy stacks.")
 parser.add_argument("--num_critic_stacks", type=int, default=None, help="Number of critic stacks.")
+parser.add_argument("--w_pot", type=float, default=None, help="MOO reward: potential term weight.")
+parser.add_argument("--w_disc", type=float, default=None, help="MOO reward: discriminator term weight.")
+parser.add_argument("--w_fm", type=float, default=None, help="MOO reward: feature-matching term weight.")
+parser.add_argument("--rel_standing_envs", type=float, default=None, help="Fraction of envs forced to zero-velocity standing.")
 parser.add_argument(
-    "--store_training_data", 
-    action='store_true', 
+    "--init_difficulty_level", type=float, default=None,
+    help="DomainManager starting difficulty (0.0=curriculum from no-randomization, 1.0=static full-range DR from step 0, disabling the gated ramp).",
+)
+parser.add_argument(
+    "--confidence_level", type=float, default=None,
+    help="DomainManager gate threshold (t-test confidence in [0,1]) required to advance difficulty_level. "
+    "Set > 1.0 to freeze difficulty_level at init_difficulty_level forever (the gate can never pass) -- "
+    "use together with --init_difficulty_level to pin an RMAStudent run at its teacher's final domain level.",
+)
+parser.add_argument(
+    "--static_dr", action="store_true", default=False,
+    help="Move DomainManagerCfg's randomize_mass/com/gains/joints terms to plain EventCfg "
+    "counterparts (same func/mode='reset'/max-range params, but through event_manager, not "
+    "domain_manager) and disable them in DomainManagerCfg -- isolates 'ordinary EventManager DR "
+    "active from step 0' vs 'DomainManager's gated curriculum' as the only variable.",
+)
+parser.add_argument(
+    "--store_training_data",
+    action='store_true',
     help="이 플래그를 사용하면 오프라인 데이터를 저장합니다."
+)
+parser.add_argument(
+    "--teacher_checkpoint_path", type=str, default=None,
+    help="Path to the frozen RMATeacher checkpoint (.pt) to distill from. Only used when the "
+    "task's agent cfg has use_rma_student=True (agent_cfg.policy.teacher_checkpoint_path).",
 )
 # append CO-RL cli arguments
 cli_args.add_co_rl_args(parser)
@@ -107,8 +135,32 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | Man
         if args_cli.experiment_description is not None
         else agent_cfg.experiment_description
     )
+    # Seed the environment before construction so startup/reset randomization
+    # is reproducible from the first sample, not only after the runner exists.
+    env_cfg.seed = agent_cfg.seed
     agent_cfg.num_policy_stacks = args_cli.num_policy_stacks if args_cli.num_policy_stacks is not None else agent_cfg.num_policy_stacks
     agent_cfg.num_critic_stacks = args_cli.num_critic_stacks if args_cli.num_critic_stacks is not None else agent_cfg.num_critic_stacks
+    if args_cli.w_pot is not None:
+        agent_cfg.add_cfg.w_pot = args_cli.w_pot
+    if args_cli.w_disc is not None:
+        agent_cfg.add_cfg.w_disc = args_cli.w_disc
+    if args_cli.w_fm is not None:
+        agent_cfg.add_cfg.w_fm = args_cli.w_fm
+    if args_cli.rel_standing_envs is not None:
+        env_cfg.commands.base_velocity.rel_standing_envs = args_cli.rel_standing_envs
+    if args_cli.init_difficulty_level is not None:
+        env_cfg.domain.init_difficulty_level = args_cli.init_difficulty_level
+    if args_cli.confidence_level is not None:
+        env_cfg.domain.confidence_level = args_cli.confidence_level
+    if args_cli.teacher_checkpoint_path is not None:
+        agent_cfg.policy.teacher_checkpoint_path = args_cli.teacher_checkpoint_path
+    if args_cli.static_dr:
+        import copy
+        for term_name in ["randomize_mass", "randomize_com", "randomize_gains", "randomize_joints"]:
+            domain_term = getattr(env_cfg.domain, term_name, None)
+            if domain_term is not None:
+                setattr(env_cfg.events, f"static_{term_name}", copy.deepcopy(domain_term))
+                setattr(env_cfg.domain, term_name, None)
 
     agent_cfg.store_training_data = args_cli.store_training_data
     

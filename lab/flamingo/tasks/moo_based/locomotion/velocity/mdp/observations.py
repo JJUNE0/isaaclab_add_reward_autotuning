@@ -193,6 +193,19 @@ def base_euler_angle_link(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = Scen
     return rpy
 
 
+def joint_pos_rel_without_wheel(
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    wheel_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """The joint positions of the asset w.r.t. the default joint positions. (Without the wheel joints)"""
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_pos_rel = asset.data.joint_pos - asset.data.default_joint_pos
+    joint_pos_rel[:, wheel_asset_cfg.joint_ids] = 0
+    joint_pos_rel = joint_pos_rel[:, asset_cfg.joint_ids]
+    return joint_pos_rel
+
+
 def joint_pos_rel_sin(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset w.r.t. the default joint positions as sine values.
 
@@ -238,6 +251,24 @@ def generated_scaled_commands(env: ManagerBasedRLEnv, command_name: str, scale: 
     scaled_command = env.command_manager.get_command(command_name).clone()
     scaled_command[:, :3] *= torch.tensor(scale, device=env.device)
     return scaled_command
+
+
+def generated_commands_height_normalized(
+    env: ManagerBasedRLEnv, command_name: str, vel_scale: tuple = (1.0, 1.0, 1.0)
+) -> torch.Tensor:
+    """Same as ``generated_scaled_commands`` (multiplicative scale on lin/ang velocity,
+    channels 0:3), but channel 3 (height, meters) is affinely mapped onto roughly [-1, 1]
+    via ``normalize_height`` instead -- a plain multiplicative ``scale`` can't recenter a
+    range like [0.27, 0.45] the way it can rescale a velocity that's already centered on 0.
+    Only the observation the policy sees is remapped; the command manager's own internal
+    representation (and everything reading it directly, e.g. reward functions) stays in
+    real meters."""
+    from .feature_functions_common import normalize_height
+
+    command = env.command_manager.get_command(command_name).clone()
+    command[:, :3] *= torch.tensor(vel_scale, device=env.device)
+    command[:, 3] = normalize_height(command[:, 3])
+    return command
 
 def generated_scaled_event_commands(env: ManagerBasedRLEnv, command_name: str, scale: tuple) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""

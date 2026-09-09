@@ -15,7 +15,15 @@ from scripts.co_rl.core.utils import *
 from scripts.co_rl.core.algorithms import MOOPPO
 
 from scripts.co_rl.core.env import VecEnv
-from scripts.co_rl.core.modules import ActorCritic, ActorCriticRecurrent, EmpiricalNormalization, RMAStudent, RMATeacher
+from scripts.co_rl.core.modules import (
+    ActorCritic,
+    ActorCriticRecurrent,
+    ActorCriticWithEstimator,
+    EmpiricalNormalization,
+    RMAStudentMultiHead,
+    RMAStudent,
+    RMATeacher,
+)
 from scripts.co_rl.core.utils import store_code_state
 
 from dataclasses import is_dataclass, fields
@@ -25,6 +33,8 @@ from scripts.co_rl.core.storage import SequenceDataStorage
 
 import torch
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless/non-GUI backend -- avoids Tk threading crashes (Tcl_AsyncDelete)
 import matplotlib.pyplot as plt
 import wandb
 from sklearn.manifold import TSNE
@@ -394,8 +404,8 @@ class MOO_OnPolicyRunner:
                 self.env.unwrapped.domain_manager.update_curriculum(mean_potential)
 
             if self.log_dir is not None and self.writer is not None and it % 100 == 0:
-                if "teacher_z" in extras and "privileged_info" in extras:
-                    # t-SNE 유틸 함수 호출
+                if self.logger_type == "wandb" and "teacher_z" in extras and "privileged_info" in extras:
+                    # t-SNE 유틸 함수 호출 (wandb 전용 -- tensorboard/neptune에는 로그 안 함)
                     log_teacher_z_tsne(extras, step=it)
             
             
@@ -466,7 +476,21 @@ class MOO_OnPolicyRunner:
 
         if self.cfg.get("use_rma_student", False):
             self.writer.add_scalar("Loss/rma_student_mse_loss", locs["mean_rma_loss"], locs["it"])
-        
+            for key in (
+                "z_loss",
+                "velocity_loss",
+                "height_loss",
+                "action_loss",
+                "velocity_mae",
+                "height_mae",
+                "action_mae",
+            ):
+                if key in locs["extras"]:
+                    self.writer.add_scalar(f"RMAStudent/{key}", locs["extras"][key], locs["it"])
+
+        if "estimator_loss" in locs["extras"]:
+            self.writer.add_scalar("Loss/estimator_mse_loss", locs["extras"]["estimator_loss"], locs["it"])
+
         if hasattr(self.moo_reward_manager, "debug_metrics"):
             locs["moo_metrics"] = self.moo_reward_manager.debug_metrics
         
@@ -589,7 +613,7 @@ class MOO_OnPolicyRunner:
         torch.save(saved_dict, path)
 
         # Upload model to external logging service``
-        if self.logger_type in ["neptune", "wandb"]:
+        if getattr(self, "logger_type", None) in ["neptune", "wandb"]:
             self.writer.save_model(path, self.current_learning_iteration)
 
     def load(self, path, load_optimizer=True):
@@ -602,11 +626,19 @@ class MOO_OnPolicyRunner:
             }
             
             self.alg.actor_critic.load_state_dict(filtered_dict, strict=False)
+
+        if load_optimizer:
+            if "ppo_optimizer_state_dict" in loaded_dict:
+                self.alg.ppo_optimizer.load_state_dict(loaded_dict["ppo_optimizer_state_dict"])
+            if "disc_optimizer_state_dict" in loaded_dict and getattr(self.alg, "disc_optimizer", None) is not None:
+                self.alg.disc_optimizer.load_state_dict(loaded_dict["disc_optimizer_state_dict"])
         
         if self.empirical_normalization:
             self.obs_normalizer.load_state_dict(loaded_dict["obs_norm_state_dict"])
             
-        self.current_learning_iteration = loaded_dict["iter"]
+        # Checkpoints are written after the recorded iteration has completed.
+        # Resume from the following iteration instead of repeating it.
+        self.current_learning_iteration = loaded_dict["iter"] + 1
         return loaded_dict["infos"]
 
     def get_inference_policy(self, device=None):
@@ -634,4 +666,3 @@ class MOO_OnPolicyRunner:
 
     def add_git_repo_to_log(self, repo_file_path):
         self.git_status_repos.append(repo_file_path)
-

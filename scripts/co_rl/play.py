@@ -5,6 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
 import argparse
 
 from isaaclab.app import AppLauncher
@@ -84,8 +89,10 @@ from scripts.co_rl.core.wrapper import (
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+try:
+    from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+except ImportError:
+    get_published_pretrained_checkpoint = None
 
 
 # Import extensions to set up environment tasks

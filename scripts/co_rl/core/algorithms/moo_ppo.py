@@ -11,6 +11,7 @@ from scripts.co_rl.core.modules import ActorCritic, DiscriminatorGRU, Discrimina
 from scripts.co_rl.core.storage import MOORolloutStorage
 
 from scripts.co_rl.core.modules.teacher_student import RMAStudent, RMATeacher
+from scripts.co_rl.core.modules.actor_critic_with_estimator import ActorCriticWithEstimator
 from scripts.co_rl.core.modules.utils import DiffNormalizer, EMA
 
 class MOOPPO:
@@ -34,6 +35,7 @@ class MOOPPO:
         use_clipped_value_loss=True,
         schedule="fixed",
         desired_kl=0.01,
+        estimator_loss_coef=1.0,
         device="cpu",
     ):
         self.device = device
@@ -48,6 +50,8 @@ class MOOPPO:
         self.storage = None  # initialized later
         
         self.is_student = isinstance(self.actor_critic, RMAStudent)
+        self.is_estimator = isinstance(self.actor_critic, ActorCriticWithEstimator)
+        self.estimator_loss_coef = estimator_loss_coef
         if self.is_student:
             print("[MOOPPO] Detected RMAStudent. Switching to Supervised Learning (MSE).")
             self.ppo_optimizer = optim.Adam(
@@ -333,22 +337,37 @@ class MOOPPO:
         # if isinstance(self.actor_critic, RMATeacher):
         #     latent_penalty = 0.0001 * torch.mean(z_teacher ** 2)
         #     loss += latent_penalty
-        
+
+        estimator_loss = None
+        if self.is_estimator:
+            # self.actor_critic.act(obs_batch, ...) above (still attached to
+            # the autograd graph) populated _last_estimator_output for this
+            # batch. Ground-truth target is the env's "priv_prio" group
+            # (base_lin_vel_x/y/z), which CoRlVecEnvWrapper concatenates as
+            # the LAST columns of critic_obs (sorted priv_* group names,
+            # "priv_prio" sorts after "priv_extrio"/"priv_physical").
+            estimator_target = critic_obs_batch[:, -self.actor_critic.estimator_output_dim :]
+            estimator_loss = nn.functional.mse_loss(self.actor_critic._last_estimator_output, estimator_target)
+            loss = loss + self.estimator_loss_coef * estimator_loss
+
         # Gradient step
         self.ppo_optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
         self.ppo_optimizer.step()
-        
-        
+
+
         infos = {
                 "value_loss" : value_loss.item(),
                 "surrogate_loss" : surrogate_loss.item(),
                 }
-        
+
         if isinstance(self.actor_critic, RMATeacher):
             infos["z_teacher"] = z_teacher.detach().cpu()
-        
+
+        if estimator_loss is not None:
+            infos["estimator_loss"] = estimator_loss.item()
+
         return infos
     
     def _update_student(self, obs_batch, critic_obs_batch) -> dict:
@@ -356,16 +375,21 @@ class MOOPPO:
         Student Distillation Update (MSE Loss)
         z_teacher(Target) <-> z_student(Pred)
         """
-        z_pred = self.actor_critic.adaptation_module(obs_batch)
+        if hasattr(self.actor_critic, "compute_distillation_loss"):
+            loss, infos = self.actor_critic.compute_distillation_loss(obs_batch, critic_obs_batch)
+            z_target = infos["teacher_z"].to(self.device)
+            z_pred = infos["student_z"].to(self.device)
+        else:
+            z_pred = self.actor_critic.adaptation_module(obs_batch)
 
-        enc_input_dim = self.actor_critic.teacher_encoder.net[0].in_features
-        priv_info_batch = critic_obs_batch[:, -enc_input_dim:]
+            enc_input_dim = self.actor_critic.teacher_encoder.net[0].in_features
+            priv_info_batch = critic_obs_batch[:, -enc_input_dim:]
 
-        with torch.no_grad():
-            z_target = self.actor_critic.teacher_encoder(priv_info_batch)
+            with torch.no_grad():
+                z_target = self.actor_critic.teacher_encoder(priv_info_batch)
 
-        # 3. Loss & Step
-        loss = nn.functional.mse_loss(z_pred, z_target)
+            loss = nn.functional.mse_loss(z_pred, z_target)
+            infos = {}
 
         self.ppo_optimizer.zero_grad() 
         loss.backward()
@@ -394,10 +418,11 @@ class MOOPPO:
 
         # 단순 loss만 리턴하지 말고, 분석 정보를 같이 리턴해서 Logger가 찍게 하세요.
         
-        infos = {
-            "rma_loss" : loss.item(),
-            "teacher_z" : z_target.detach().cpu(), 
-            "student_z" : z_pred.detach().cpu()}
+        infos.update({
+            "rma_loss": loss.item(),
+            "teacher_z": z_target.detach().cpu(),
+            "student_z": z_pred.detach().cpu(),
+        })
         
         return infos
     
@@ -407,7 +432,9 @@ class MOOPPO:
         mean_disc_loss = 0
         mean_disc_prob = 0
         mean_rma_loss = 0
-        
+        mean_estimator_loss = 0
+        student_metric_sums = {}
+
         extras = {}
         
         if getattr(self.actor_critic, "is_recurrent", False):
@@ -441,6 +468,9 @@ class MOOPPO:
                 
                 extras["teacher_z"] = student_infos["teacher_z"]
                 extras["student_z"] = student_infos["student_z"]
+                for key, value in student_infos.items():
+                    if (key.endswith("_loss") or key.endswith("_mae")) and key != "rma_loss":
+                        student_metric_sums[key] = student_metric_sums.get(key, 0.0) + value
                 
                 enc_input_dim = self.actor_critic.teacher_encoder.net[0].in_features
                 extras["privileged_info"] = critic_obs_batch[:, -enc_input_dim:].detach().cpu()
@@ -455,7 +485,10 @@ class MOOPPO:
                 
                 mean_value_loss += policy_infos["value_loss"]
                 mean_surrogate_loss += policy_infos["surrogate_loss"]
-                
+
+                if "estimator_loss" in policy_infos:
+                    mean_estimator_loss += policy_infos["estimator_loss"]
+
                 if "z_teacher" in policy_infos:
 
                     extras["teacher_z"] = policy_infos["z_teacher"]
@@ -470,10 +503,15 @@ class MOOPPO:
         mean_disc_loss /= num_updates
         mean_disc_prob /= num_updates
         mean_rma_loss /= num_updates
+        mean_estimator_loss /= num_updates
+        for key, value in student_metric_sums.items():
+            extras[key] = value / num_updates
         self.storage.clear()
 
         # self.delta_normalizer.reset()
-        
-        return mean_value_loss, mean_surrogate_loss, mean_disc_loss, mean_disc_prob, mean_rma_loss, extras
 
+        if self.is_estimator:
+            extras["estimator_loss"] = mean_estimator_loss
+
+        return mean_value_loss, mean_surrogate_loss, mean_disc_loss, mean_disc_prob, mean_rma_loss, extras
 

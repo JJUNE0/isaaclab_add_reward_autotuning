@@ -537,6 +537,74 @@ def reset_joints_by_scale(
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
 
+def reset_joints_by_fold_offset(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    fold_joint_pos: tuple[float, ...] | list[float],
+    interpolation_range: tuple[float, float] = (0.0, 1.0),
+    position_noise_range: tuple[float, float] = (0.0, 0.0),
+    velocity_range: tuple[float, float] = (0.0, 0.0),
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset joints along the correlated default-to-fold posture path.
+
+    A single interpolation factor is sampled per environment and shared by all
+    selected joints. This preserves the left/right and multi-joint correlation
+    of the fold posture, unlike independently sampling a large offset for each
+    joint. Small independent position noise may be added after interpolation.
+
+    The resulting joint positions and velocities are clamped to the
+    articulation's soft limits before being written to simulation.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    device = asset.device
+
+    if env_ids is None:
+        env_ids = torch.arange(asset.num_instances, device=device)
+    else:
+        env_ids = env_ids.to(device=device)
+
+    if asset_cfg.joint_ids == slice(None):
+        joint_ids = torch.arange(asset.num_joints, device=device)
+    else:
+        joint_ids = torch.as_tensor(asset_cfg.joint_ids, device=device, dtype=torch.long)
+
+    fold_pos = torch.as_tensor(fold_joint_pos, device=device, dtype=asset.data.default_joint_pos.dtype)
+    if fold_pos.ndim != 1 or fold_pos.numel() != joint_ids.numel():
+        raise ValueError(
+            "fold_joint_pos must contain exactly one value per selected joint: "
+            f"received {fold_pos.numel()} values for {joint_ids.numel()} joints."
+        )
+    if interpolation_range[0] > interpolation_range[1]:
+        raise ValueError(f"Invalid interpolation_range: {interpolation_range}.")
+    if position_noise_range[0] > position_noise_range[1]:
+        raise ValueError(f"Invalid position_noise_range: {position_noise_range}.")
+    if velocity_range[0] > velocity_range[1]:
+        raise ValueError(f"Invalid velocity_range: {velocity_range}.")
+
+    index = env_ids[:, None]
+    default_pos = asset.data.default_joint_pos[index, joint_ids].clone()
+    default_vel = asset.data.default_joint_vel[index, joint_ids].clone()
+
+    blend = math_utils.sample_uniform(
+        interpolation_range[0], interpolation_range[1], (len(env_ids), 1), device=device
+    )
+    joint_pos = default_pos + blend * (fold_pos.unsqueeze(0) - default_pos)
+    joint_pos += math_utils.sample_uniform(
+        position_noise_range[0], position_noise_range[1], joint_pos.shape, device=device
+    )
+    joint_vel = default_vel + math_utils.sample_uniform(
+        velocity_range[0], velocity_range[1], default_vel.shape, device=device
+    )
+
+    joint_pos_limits = asset.data.soft_joint_pos_limits[index, joint_ids]
+    joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+    joint_vel_limits = asset.data.soft_joint_vel_limits[index, joint_ids]
+    joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
+
+    asset.write_joint_state_to_sim(joint_pos, joint_vel, joint_ids=joint_ids, env_ids=env_ids)
+
+
 def reset_joints_by_offset(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -569,4 +637,3 @@ def reset_joints_by_offset(
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
-

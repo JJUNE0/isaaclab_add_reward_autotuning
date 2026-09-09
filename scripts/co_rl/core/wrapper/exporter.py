@@ -301,9 +301,7 @@ class EncoderONNXWrapper(torch.nn.Module):
         self.exterio_dim = student.exterio_dim
         
     def forward(self, history_buffer):
-        z_hat = self.adaptation_module(history_buffer)
-        
-        return z_hat
+        return self.adaptation_module(history_buffer)
 
 def export_student_onnx(actor_critic: torch.nn.Module, output_path: str, device="cpu", verbose=False):
     print(f"[Export] Preparing to export Adaptation Module (Encoder) to ONNX...")
@@ -340,6 +338,11 @@ def export_student_onnx(actor_critic: torch.nn.Module, output_path: str, device=
 
     print(f"[Export] Exporting to ONNX at {output_path}...")
     
+    is_multi_head = getattr(model, "is_multi_head_student", False)
+    output_names = ["z_hat", "lin_vel_hat", "height_hat"] if is_multi_head else ["z_hat"]
+    dynamic_axes = {"history_in": {0: "batch_size"}}
+    dynamic_axes.update({name: {0: "batch_size"} for name in output_names})
+
     torch.onnx.export(
         wrapper,
         dummy_history,
@@ -348,13 +351,10 @@ def export_student_onnx(actor_critic: torch.nn.Module, output_path: str, device=
         opset_version=11,
         do_constant_folding=True,
         input_names=['history_in'],
-        output_names=['z_hat'], # [수정] Action은 출력하지 않음
-        dynamic_axes={
-            'history_in': {0: 'batch_size'},
-            'z_hat': {0: 'batch_size'},
-        }
+        output_names=output_names,
+        dynamic_axes=dynamic_axes,
     )
     
     print(f"✅ Successfully exported Encoder to {output_path}")
-    print(f"   Outputs: z_hat (Latent), next_history (Updated Buffer)")
+    print(f"   Outputs: {', '.join(output_names)}")
     

@@ -47,6 +47,130 @@ class CoRlPpoActorCriticCfg:
     """The activation function for the actor and critic networks."""
     
 @configclass
+class CoRlEstimatorActorCriticCfg:
+    """Configuration for the base-velocity-estimator actor-critic (ActorCriticWithEstimator).
+
+    The actor's own obs must be pure proprioception (no ground-truth
+    base_lin_vel term) -- an MLP estimator predicts it and its output is
+    concatenated with the proprio before the actor, trained jointly via an
+    auxiliary MSE loss (see MOOPPO._update_policy / estimator_loss_coef on
+    CoRlMooPpoAlgorithmCfg). Ground-truth target comes from the env's
+    "priv_prio" observation group.
+    """
+
+    class_name: str = "ActorCriticWithEstimator"
+    """The policy class name."""
+
+    init_noise_std: float = MISSING
+    """The initial noise standard deviation for the policy."""
+
+    actor_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the actor network."""
+
+    critic_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the critic network."""
+
+    activation: str = MISSING
+    """The activation function for the actor and critic networks."""
+
+    estimator_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the estimator MLP."""
+
+    estimator_output_dim: int = MISSING
+    """The dimension of the quantity the estimator predicts (e.g. 3 for base_lin_vel_x/y/z)."""
+
+
+@configclass
+class CoRlRMATeacherActorCriticCfg:
+    """Configuration for the RMA teacher actor-critic (RMATeacher).
+
+    The actor's input is [proprio, z] where z = Encoder(privileged_info) --
+    privileged_info is the env's full concatenated priv_* bundle (priv_extrio +
+    priv_physical + priv_prio: system-ID quantities like body mass/COM/actuator
+    gains, terrain/height-scan, and ground-truth base_lin_vel/base_height),
+    compressed to a latent_dim-wide latent. Used with use_rma_teacher=True on
+    the runner cfg. A later RMAStudent distills this teacher (frozen actor +
+    encoder) via a history-based adaptation module that predicts z_hat without
+    privileged info, for sim2real deployment.
+    """
+
+    class_name: str = "RMATeacher"
+    """The policy class name."""
+
+    init_noise_std: float = MISSING
+    """The initial noise standard deviation for the policy."""
+
+    actor_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the actor network."""
+
+    critic_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the critic network."""
+
+    activation: str = MISSING
+    """The activation function for the actor and critic networks."""
+
+    latent_dim: int = 16
+    """The width of the encoder's output latent z."""
+
+
+@configclass
+class CoRlRMAStudentActorCriticCfg:
+    """Configuration for the RMA student actor-critic (RMAStudent).
+
+    Distills a frozen RMATeacher (actor + encoder, both frozen -- see
+    CoRlRMATeacherActorCriticCfg) via a history-based AdaptationModule
+    (dilated TCN) that predicts z_hat from a window of past proprio+command
+    frames, without any privileged info -- for sim2real deployment. Used with
+    use_rma_student=True on the runner cfg. Must be trained against the exact
+    same env cfg (and num_policy_stacks) the referenced teacher was trained
+    with, since the teacher's frozen actor has a fixed input dimension.
+
+    actor_hidden_dims/critic_hidden_dims/activation are only used to
+    construct the ActorCritic base class's MLPs at __init__ time -- the actor
+    is immediately overwritten with the teacher's frozen actor right after, so
+    these values don't affect the student functionally. Kept matching the
+    teacher's for consistency.
+    """
+
+    class_name: str = "RMAStudent"
+    """The policy class name."""
+
+    init_noise_std: float = MISSING
+    """The initial noise standard deviation for the policy (unused -- overwritten by teacher's frozen std)."""
+
+    actor_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the actor network (unused -- overwritten by teacher's frozen actor)."""
+
+    critic_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the critic network."""
+
+    activation: str = MISSING
+    """The activation function for the actor and critic networks."""
+
+    latent_dim: int = 16
+    """The width of the predicted latent z_hat. Must match the teacher's latent_dim."""
+
+    history_len: int = 50
+    """The number of past frames the AdaptationModule's TCN consumes. Independent of num_policy_stacks."""
+
+    teacher_checkpoint_path: str = "MISSING"
+    """Path to the frozen RMATeacher checkpoint (.pt) to distill from. Required."""
+
+
+@configclass
+class CoRlRMAStudentMultiHeadActorCriticCfg(CoRlRMAStudentActorCriticCfg):
+    """Multi-head student that reconstructs the 808 teacher's oracle actor slots."""
+
+    class_name: str = "RMAStudentMultiHead"
+    observable_single_obs_dim: int = 28
+    state_dim: int = 4
+    z_loss_coef: float = 1.0
+    velocity_loss_coef: float = 1.0
+    height_loss_coef: float = 10.0
+    action_loss_coef: float = 1.0
+
+
+@configclass
 class CoRlSIEActorCriticCfg:
     """Configuration for the PPO actor-critic networks."""
 
@@ -207,6 +331,10 @@ class CoRlMooPpoAlgorithmCfg:
 
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
+
+    estimator_loss_coef: float = 1.0
+    """Coefficient for the base-velocity-estimator auxiliary MSE loss (only used when the
+    actor-critic is ActorCriticWithEstimator; ignored otherwise)."""
 
 
 @configclass

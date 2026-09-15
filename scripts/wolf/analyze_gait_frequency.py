@@ -1,4 +1,4 @@
-"""Evaluate a fixed-trot checkpoint at several episode-level frequencies."""
+"""Evaluate a trot checkpoint at several episode-level frequencies."""
 
 from __future__ import annotations
 
@@ -10,6 +10,11 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--checkpoint", required=True)
+parser.add_argument(
+    "--task",
+    default="Isaac-Velocity-Flat-Wolf-v2-GaitTrotPaper-ppo-Play",
+    help="Task whose actor/critic and gait command configuration match the checkpoint.",
+)
 parser.add_argument(
     "--frequencies",
     type=float,
@@ -48,7 +53,7 @@ try:
     from scripts.co_rl.core.runners import OnPolicyRunner
     from scripts.co_rl.core.wrapper import CoRlVecEnvWrapper
 
-    task = "Isaac-Velocity-Flat-Wolf-v2-GaitTrotPaper-ppo-Play"
+    task = args.task
     checkpoint = Path(args.checkpoint).resolve()
     cfg = parse_env_cfg(task, device=args.device, num_envs=1)
     cfg.seed = 42
@@ -56,6 +61,9 @@ try:
     cfg.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
     cfg.commands.base_velocity.ranges.ang_vel_z = (0.0, 0.0)
     cfg.commands.gait.frequency = float(args.frequencies[0])
+    cfg.commands.gait.frequency_range = (
+        float(args.frequencies[0]), float(args.frequencies[0])
+    )
 
     raw = gym.make(task, cfg=cfg)
     base = raw.unwrapped
@@ -73,16 +81,19 @@ try:
     if foot_names != FEET:
         raise RuntimeError(f"Unexpected foot order: {foot_names}; expected {FEET}")
 
-    # Keep the command term's frequency fixed for each complete episode.  The
-    # command term is intentionally fixed-gait, so this update is deterministic
-    # and does not resample in the middle of a rollout.
+    # Keep the command term's frequency fixed for each complete episode.  Setting
+    # the config range before reset works for both the fixed and randomized task;
+    # the reset then builds observations with the same frequency that the policy
+    # will see on the first step.
     gait_term = base.command_manager.get_term("gait")
     results = []
     heatmap = []
+    base_ang_vel_samples = []
     short_names = ["FL", "FR", "BL", "BR"]
 
     for frequency in args.frequencies:
-        gait_term._command[:, 3] = float(frequency)
+        gait_term.cfg.frequency = float(frequency)
+        gait_term.cfg.frequency_range = (float(frequency), float(frequency))
         # Isaac Lab keeps simulation state in inference tensors after the
         # wrapper's initial reset, so explicit episode resets must use the
         # same inference context as the rollout loop.
@@ -99,6 +110,7 @@ try:
         force_trace = []
         horizontal_speed_trace = []
         vertical_speed_trace = []
+        base_ang_vel_trace = []
         done_step = None
         with torch.inference_mode():
             for step in range(args.steps):
@@ -111,6 +123,7 @@ try:
                 force_trace.append(force.cpu().numpy())
                 horizontal_speed_trace.append(torch.linalg.vector_norm(velocity[:, :2], dim=-1).cpu().numpy())
                 vertical_speed_trace.append(velocity[:, 2].cpu().numpy())
+                base_ang_vel_trace.append(robot.data.root_ang_vel_b[0, :2].cpu().numpy())
                 if bool(done[0]):
                     done_step = step
                     break
@@ -126,6 +139,7 @@ try:
         all_force = _trace_array(force_trace, len(foot_names))
         all_horizontal_speed = _trace_array(horizontal_speed_trace, len(foot_names))
         all_vertical_speed = _trace_array(vertical_speed_trace, len(foot_names))
+        all_base_ang_vel = _trace_array(base_ang_vel_trace, 2)
 
         # Apply the requested warmup whenever the episode survived long
         # enough.  Otherwise use all available samples and report that the
@@ -137,6 +151,34 @@ try:
         force = all_force[warmup_start:]
         horizontal_speed = all_horizontal_speed[warmup_start:]
         vertical_speed = all_vertical_speed[warmup_start:]
+        base_ang_vel = all_base_ang_vel[warmup_start:]
+        base_ang_vel_samples.append((float(frequency), base_ang_vel.copy()))
+
+        if base_ang_vel.shape[0] == 0:
+            base_ang_vel_distribution = {
+                "x_body_radps": None,
+                "y_body_radps": None,
+                "xy_norm_radps": None,
+            }
+        else:
+            xy_norm = np.linalg.norm(base_ang_vel, axis=1)
+
+            def _distribution(values):
+                return {
+                    "mean": float(np.mean(values)),
+                    "std": float(np.std(values)),
+                    "mean_abs": float(np.mean(np.abs(values))),
+                    "p05": float(np.percentile(values, 5)),
+                    "p50": float(np.percentile(values, 50)),
+                    "p95": float(np.percentile(values, 95)),
+                    "p95_abs": float(np.percentile(np.abs(values), 95)),
+                }
+
+            base_ang_vel_distribution = {
+                "x_body_radps": _distribution(base_ang_vel[:, 0]),
+                "y_body_radps": _distribution(base_ang_vel[:, 1]),
+                "xy_norm_radps": _distribution(xy_norm),
+            }
 
         per_foot = {}
         alignment = []
@@ -180,6 +222,7 @@ try:
             "warmup_applied": warmup_applied,
             "step_dt_s": float(base.step_dt),
             "survival_time_s": float(all_desired.shape[0] * base.step_dt),
+            "base_ang_vel_distribution": base_ang_vel_distribution,
             "terminated_at_step": done_step,
             "survived_full_rollout": done_step is None,
             "overall_alignment_accuracy": (
@@ -200,15 +243,26 @@ try:
         "foot_order": foot_names,
         "step_dt_s": float(base.step_dt),
         "contact_threshold_N": args.contact_threshold,
+        "base_ang_vel_frame": "root/body frame; x=roll rate, y=pitch rate",
+        "base_ang_vel_units": "rad/s",
+        "base_ang_vel_trace_file": "base_ang_vel_frequency_trace.npz",
         "results": results,
     }
     (output / "gait_frequency_sweep.json").write_text(json.dumps(summary, indent=2))
+
+    trace_payload = {
+        "frequencies_Hz": np.asarray([item[0] for item in base_ang_vel_samples], dtype=np.float32)
+    }
+    for index, (_, samples) in enumerate(base_ang_vel_samples):
+        trace_payload[f"base_ang_vel_xy_radps_{index}"] = samples
+    np.savez_compressed(output / "base_ang_vel_frequency_trace.npz", **trace_payload)
 
     frequencies = np.asarray([item["frequency_Hz"] for item in results], dtype=np.float32)
     alignment = np.asarray(heatmap, dtype=np.float32)
     order = np.argsort(frequencies)
     frequencies = frequencies[order]
     alignment = alignment[order]
+    sorted_results = [results[int(index)] for index in order]
     fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12, 4.5), gridspec_kw={"width_ratios": [1.15, 1.0]})
     mean_alignment = np.asarray(
         [np.nanmean(row) if np.isfinite(row).any() else np.nan for row in alignment],
@@ -251,6 +305,52 @@ try:
     fig.tight_layout()
     fig.savefig(output / "gait_frequency_sweep.png", dpi=170)
     plt.close(fig)
+
+    # Plot signed body-frame roll/pitch distributions as frequency-conditioned
+    # 5th--95th percentile bands with their median.  Early-terminated episodes
+    # remain visible through their shorter sample count in the JSON/NPZ.
+    distribution_specs = [
+        ("x_body_radps", "Base angular velocity x (roll rate) [rad/s]"),
+        ("y_body_radps", "Base angular velocity y (pitch rate) [rad/s]"),
+        ("xy_norm_radps", "Base angular velocity xy norm [rad/s]"),
+    ]
+    fig_dist, axes_dist = plt.subplots(1, 3, figsize=(15, 4.2), sharex=True)
+    for axis, (key, label) in zip(axes_dist, distribution_specs):
+        p05 = np.asarray(
+            [
+                item["base_ang_vel_distribution"][key]["p05"]
+                if item["base_ang_vel_distribution"] is not None else np.nan
+                for item in sorted_results
+            ],
+            dtype=np.float32,
+        )
+        p50 = np.asarray(
+            [
+                item["base_ang_vel_distribution"][key]["p50"]
+                if item["base_ang_vel_distribution"] is not None else np.nan
+                for item in sorted_results
+            ],
+            dtype=np.float32,
+        )
+        p95 = np.asarray(
+            [
+                item["base_ang_vel_distribution"][key]["p95"]
+                if item["base_ang_vel_distribution"] is not None else np.nan
+                for item in sorted_results
+            ],
+            dtype=np.float32,
+        )
+        axis.fill_between(frequencies, p05, p95, color="tab:blue", alpha=0.2, label="p05--p95")
+        axis.plot(frequencies, p50, "o-", color="tab:blue", label="median")
+        axis.axhline(0.0, color="black", linewidth=0.8, alpha=0.5)
+        axis.set_xlabel("Trot frequency [Hz]")
+        axis.set_ylabel(label)
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize=8)
+    fig_dist.suptitle("Wolf base angular velocity distribution versus trot frequency")
+    fig_dist.tight_layout()
+    fig_dist.savefig(output / "base_ang_vel_frequency.png", dpi=170)
+    plt.close(fig_dist)
 
     print("WOLF_GAIT_FREQUENCY_SWEEP_PASS " + json.dumps(summary), flush=True)
     env.close()

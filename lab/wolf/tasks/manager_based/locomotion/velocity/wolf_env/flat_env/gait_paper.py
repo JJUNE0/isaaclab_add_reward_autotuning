@@ -6,6 +6,7 @@ task per one-term ablation so runs can share exactly the same PPO and scene
 configuration.
 """
 
+from isaaclab.envs import mdp
 from isaaclab.managers import RewardTermCfg as Reward
 from isaaclab.utils import configclass
 
@@ -24,11 +25,17 @@ PAPER_FOOT_SLIP_WEIGHT = -0.05
 PAPER_CLEARANCE_WEIGHT = -0.05
 PAPER_IMPACT_WEIGHT = -0.05
 PAPER_MAX_FORCE_WEIGHT = -0.05
+BASE_ANG_VEL_XY_WEIGHT = -0.05
 
 
 @configclass
 class GaitPaperRewardsCfg(GaitRewardsCfg):
-    """V0 rewards plus all four paper-style contact-quality costs."""
+    """V0 rewards plus contact-quality costs and base roll/pitch damping."""
+
+    base_ang_vel_xy = Reward(
+        func=mdp.ang_vel_xy_l2,
+        weight=BASE_ANG_VEL_XY_WEIGHT,
+    )
 
     gait_foot_slip = Reward(
         func=gait.foot_slip_penalty,

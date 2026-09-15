@@ -27,6 +27,7 @@ try:
     import torch
 
     import lab.wolf.tasks
+    from isaaclab.envs import mdp
     from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
     from scripts.co_rl.core.runners import OnPolicyRunner
     from scripts.co_rl.core.wrapper import CoRlVecEnvWrapper
@@ -44,6 +45,7 @@ try:
 
     raw = env.unwrapped
     reward_terms = {
+        "base_ang_vel_xy": mdp.ang_vel_xy_l2,
         "foot_slip": gait.foot_slip_penalty,
         "clearance": gait.foot_clearance_penalty,
         "impact_velocity": gait.foot_impact_velocity_penalty,

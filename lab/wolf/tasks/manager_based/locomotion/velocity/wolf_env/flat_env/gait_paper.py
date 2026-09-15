@@ -22,7 +22,7 @@ from .gait import GaitRewardsCfg
 # contribution comparable to the two V0 gait costs while the physical units of
 # each threshold remain explicit in the config below.
 PAPER_FOOT_SLIP_WEIGHT = -0.05
-PAPER_CLEARANCE_WEIGHT = -0.05
+PAPER_CLEARANCE_WEIGHT = -0.1
 PAPER_IMPACT_WEIGHT = -0.05
 PAPER_MAX_FORCE_WEIGHT = -0.05
 BASE_ANG_VEL_XY_WEIGHT = -0.1

@@ -25,7 +25,7 @@ PAPER_FOOT_SLIP_WEIGHT = -0.05
 PAPER_CLEARANCE_WEIGHT = -0.05
 PAPER_IMPACT_WEIGHT = -0.05
 PAPER_MAX_FORCE_WEIGHT = -0.05
-BASE_ANG_VEL_XY_WEIGHT = -0.05
+BASE_ANG_VEL_XY_WEIGHT = -0.1
 
 
 @configclass
@@ -46,7 +46,7 @@ class GaitPaperRewardsCfg(GaitRewardsCfg):
         func=gait.foot_clearance_penalty,
         weight=PAPER_CLEARANCE_WEIGHT,
         params={
-            "target_height": 0.08,
+            "target_height": 0.10,
             "height_offset": 0.02,
             "height_scale": 0.04,
             "reference_height": 0.0,
@@ -83,7 +83,7 @@ class GaitPaperNoClearanceRewardsCfg(GaitPaperRewardsCfg):
         func=gait.foot_clearance_penalty,
         weight=0.0,
         params={
-            "target_height": 0.08,
+            "target_height": 0.10,
             "height_offset": 0.02,
             "height_scale": 0.04,
             "reference_height": 0.0,

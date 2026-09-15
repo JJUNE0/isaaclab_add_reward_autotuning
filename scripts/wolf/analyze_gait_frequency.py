@@ -206,6 +206,9 @@ try:
 
     frequencies = np.asarray([item["frequency_Hz"] for item in results], dtype=np.float32)
     alignment = np.asarray(heatmap, dtype=np.float32)
+    order = np.argsort(frequencies)
+    frequencies = frequencies[order]
+    alignment = alignment[order]
     fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12, 4.5), gridspec_kw={"width_ratios": [1.15, 1.0]})
     mean_alignment = np.asarray(
         [np.nanmean(row) if np.isfinite(row).any() else np.nan for row in alignment],
@@ -219,16 +222,28 @@ try:
     ax0.set_ylim(0.0, 1.0)
     ax0.grid(alpha=0.25)
     ax0.legend(ncol=3, fontsize=8)
-    image = ax1.imshow(
+    if len(frequencies) == 1:
+        half_width = 0.5
+        frequency_edges = np.asarray(
+            [frequencies[0] - half_width, frequencies[0] + half_width], dtype=np.float32
+        )
+    else:
+        midpoints = 0.5 * (frequencies[:-1] + frequencies[1:])
+        frequency_edges = np.concatenate(
+            ([frequencies[0] - (midpoints[0] - frequencies[0])], midpoints,
+             [frequencies[-1] + (frequencies[-1] - midpoints[-1])])
+        )
+    image = ax1.pcolormesh(
+        np.arange(alignment.shape[1] + 1, dtype=np.float32) - 0.5,
+        frequency_edges,
         alignment,
-        aspect="auto",
-        origin="lower",
+        shading="flat",
         vmin=0.0,
         vmax=1.0,
         cmap="viridis",
-        extent=[-0.5, 3.5, float(frequencies.min()), float(frequencies.max())],
     )
     ax1.set_xticks(range(4), short_names)
+    ax1.set_ylim(float(frequency_edges[0]), float(frequency_edges[-1]))
     ax1.set_xlabel("Foot")
     ax1.set_ylabel("Trot frequency [Hz]")
     fig.colorbar(image, ax=ax1, label="Alignment")

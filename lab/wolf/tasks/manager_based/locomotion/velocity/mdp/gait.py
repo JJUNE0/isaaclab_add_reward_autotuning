@@ -17,7 +17,7 @@ from .oracle import FEET
 
 
 class FixedGaitCommand(CommandTerm):
-    """A fixed gait command (phase offsets and stepping frequency)."""
+    """A trot command with optional episode-level frequency randomization."""
 
     def __init__(self, cfg: FixedGaitCommandCfg, env):
         super().__init__(cfg, env)
@@ -35,9 +35,18 @@ class FixedGaitCommand(CommandTerm):
         return None
 
     def _resample_command(self, env_ids: Sequence[int]):
-        # V0 is deliberately fixed.  Keeping a command term still gives the phase
-        # generator the same interface needed for later frequency/gait randomization.
-        return None
+        # The command manager calls this on reset and whenever the configured
+        # resampling timer expires.  The very large timer used by Wolf gait
+        # configs therefore makes a sampled frequency constant for one episode.
+        low, high = self.cfg.frequency_range
+        if low <= 0.0 or high < low:
+            raise ValueError(f"frequency_range must satisfy 0 < low <= high, got {(low, high)}")
+        if low == high:
+            self._command[env_ids, 3] = float(low)
+        else:
+            self._command[env_ids, 3] = torch.empty(
+                len(env_ids), device=self.device, dtype=self._command.dtype
+            ).uniform_(float(low), float(high))
 
     def _update_command(self):
         return None
@@ -45,13 +54,14 @@ class FixedGaitCommand(CommandTerm):
 
 @configclass
 class FixedGaitCommandCfg(CommandTermCfg):
-    """Configuration for the fixed V0 gait command."""
+    """Configuration for a trot command and its episode-level frequency range."""
 
     class_type: type = FixedGaitCommand
     theta1: float = 0.5
     theta2: float = 0.0
     theta3: float = 0.0
     frequency: float = 2.0
+    frequency_range: tuple[float, float] = (2.0, 2.0)
     duty_factor: float = 0.5
 
 

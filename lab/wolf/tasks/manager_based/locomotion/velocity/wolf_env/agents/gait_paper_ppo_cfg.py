@@ -20,6 +20,15 @@ class WolfGaitPaperPPORunnerCfg(_WolfGaitPaperPPORunnerCfg):
 
 
 @configclass
+class WolfGaitPaperFreqRandPPORunnerCfg(_WolfGaitPaperPPORunnerCfg):
+    experiment_name = "Wolf_v2_Flat_Gait_Trot_Paper_FreqRand_PPO"
+    experiment_description = (
+        "Paper-style flat Wolf trot with stepping frequency sampled per episode "
+        "from 1.0 to 3.0 Hz"
+    )
+
+
+@configclass
 class WolfGaitPaperNoSlipPPORunnerCfg(_WolfGaitPaperPPORunnerCfg):
     experiment_name = "Wolf_v2_Flat_Gait_Trot_Paper_NoSlip_PPO"
     experiment_description = "Paper full baseline without foot-slip shaping"
@@ -45,6 +54,7 @@ class WolfGaitPaperNoMaxForcePPORunnerCfg(_WolfGaitPaperPPORunnerCfg):
 
 __all__ = [
     "WolfGaitPaperPPORunnerCfg",
+    "WolfGaitPaperFreqRandPPORunnerCfg",
     "WolfGaitPaperNoSlipPPORunnerCfg",
     "WolfGaitPaperNoClearancePPORunnerCfg",
     "WolfGaitPaperNoImpactPPORunnerCfg",

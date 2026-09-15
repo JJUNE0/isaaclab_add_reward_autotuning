@@ -10,7 +10,10 @@ from isaaclab.managers import RewardTermCfg as Reward
 from isaaclab.utils import configclass
 
 from ...mdp import gait
-from ..velocity_env_cfg import WolfGaitFlatEnvCfg as WolfGaitFlatBaseCfg
+from ..velocity_env_cfg import (
+    GaitFrequencyRandomizedCommandsCfg,
+    WolfGaitFlatEnvCfg as WolfGaitFlatBaseCfg,
+)
 from .gait import GaitRewardsCfg
 
 
@@ -119,6 +122,22 @@ class WolfGaitFlatPaperEnvCfg_PLAY(WolfGaitFlatPaperEnvCfg):
 
 
 @configclass
+class WolfGaitFlatPaperFreqRandEnvCfg(WolfGaitFlatBaseCfg):
+    """Full paper-style flat trot with a 1--3 Hz episode-level command."""
+
+    commands: GaitFrequencyRandomizedCommandsCfg = GaitFrequencyRandomizedCommandsCfg()
+    rewards: GaitPaperRewardsCfg = GaitPaperRewardsCfg()
+
+
+@configclass
+class WolfGaitFlatPaperFreqRandEnvCfg_PLAY(WolfGaitFlatPaperFreqRandEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 16
+        self.scene.terrain.max_init_terrain_level = 0
+
+
+@configclass
 class WolfGaitFlatPaperNoSlipEnvCfg(WolfGaitFlatBaseCfg):
     rewards: GaitPaperNoSlipRewardsCfg = GaitPaperNoSlipRewardsCfg()
 
@@ -173,6 +192,8 @@ class WolfGaitFlatPaperNoMaxForceEnvCfg_PLAY(WolfGaitFlatPaperNoMaxForceEnvCfg):
 __all__ = [
     "WolfGaitFlatPaperEnvCfg",
     "WolfGaitFlatPaperEnvCfg_PLAY",
+    "WolfGaitFlatPaperFreqRandEnvCfg",
+    "WolfGaitFlatPaperFreqRandEnvCfg_PLAY",
     "WolfGaitFlatPaperNoSlipEnvCfg",
     "WolfGaitFlatPaperNoSlipEnvCfg_PLAY",
     "WolfGaitFlatPaperNoClearanceEnvCfg",

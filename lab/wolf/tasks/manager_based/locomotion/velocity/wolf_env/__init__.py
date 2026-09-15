@@ -26,6 +26,11 @@ for suffix, config in [("", "WolfGaitFlatEnvCfg"), ("-Play", "WolfGaitFlatEnvCfg
 # same scene, commands, observations and PPO settings.
 _PAPER_GAIT_TASKS = {
     "GaitTrotPaper": ("WolfGaitFlatPaperEnvCfg", "WolfGaitFlatPaperEnvCfg_PLAY", "WolfGaitPaperPPORunnerCfg"),
+    "GaitTrotPaperFreqRand": (
+        "WolfGaitFlatPaperFreqRandEnvCfg",
+        "WolfGaitFlatPaperFreqRandEnvCfg_PLAY",
+        "WolfGaitPaperFreqRandPPORunnerCfg",
+    ),
     "GaitTrotPaperNoSlip": (
         "WolfGaitFlatPaperNoSlipEnvCfg",
         "WolfGaitFlatPaperNoSlipEnvCfg_PLAY",

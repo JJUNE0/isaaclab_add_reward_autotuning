@@ -71,6 +71,21 @@ class GaitCommandsCfg(CommandsCfg):
         duty_factor=0.5,
     )
 
+
+@configclass
+class GaitFrequencyRandomizedCommandsCfg(GaitCommandsCfg):
+    """Trot commands with one frequency sampled at the start of each episode."""
+
+    gait = gait.FixedGaitCommandCfg(
+        resampling_time_range=(1.0e9, 1.0e9),
+        theta1=0.5,
+        theta2=0.0,
+        theta3=0.0,
+        frequency=2.0,
+        frequency_range=(1.0, 3.0),
+        duty_factor=0.5,
+    )
+
 @configclass
 class ActionsCfg:
     joint_pos = mdp.JointPositionActionCfg(

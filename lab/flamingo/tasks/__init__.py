@@ -17,9 +17,6 @@ __version__ = LAB_TASKS_METADATA["package"]["version"]
 # Register Gym environments.
 ##
 
-from isaaclab_tasks.utils import import_packages
-
-# The blacklist is used to prevent importing configs from sub-packages
-_BLACKLIST_PKGS = ["utils"]
-# Import all configs in this package
-import_packages(__name__, _BLACKLIST_PKGS)
+# This branch targets Wolf. Upstream prototype tasks include incomplete imports;
+# register the supported Wolf environments explicitly instead of importing all demos.
+from .manager_based.locomotion.velocity import wolf_env  # noqa: F401

@@ -15,7 +15,7 @@ from lab.flamingo.tasks.manager_based.locomotion.velocity.wolf_env.velocity_env_
     CurriculumCfg,
 )
 
-from lab.flamingo.assets.flamingo.wolf_rev01_0_0 import WOLF_CFG  # isort: skip
+from lab.flamingo.assets.wolf_v2 import wolf_v2_cfg  # isort: skip
 
 
 @configclass
@@ -40,7 +40,7 @@ class WolfRewardsCfg():
         func=mdp.feet_air_time,
         weight=0.01,
         params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["Shank_front_left_link", "Shank_front_right_link", "Ankle_back_left_link", "Ankle_back_right_link"]),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["Foot_front_left_link", "Foot_front_right_link", "Foot_back_left_link", "Foot_back_right_link"]),
             "command_name": "base_velocity",
             "threshold": 0.5,
         },
@@ -84,7 +84,7 @@ class WolfFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         # post init of parent
         super().__post_init__()
         # scene
-        self.scene.robot = WOLF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = wolf_v2_cfg().replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
@@ -152,7 +152,7 @@ class WolfFlatEnvCfg_PLAY(WolfFlatEnvCfg):
             self.scene.terrain.terrain_generator.curriculum = True
 
         # scene
-        self.scene.robot = WOLF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = wolf_v2_cfg().replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"

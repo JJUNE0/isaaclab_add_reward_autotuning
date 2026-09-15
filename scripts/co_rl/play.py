@@ -90,6 +90,7 @@ from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkp
 
 # Import extensions to set up environment tasks
 import lab.flamingo.tasks  # noqa: F401
+import lab.wolf.tasks  # noqa: F401
 from lab.flamingo.isaaclab.isaaclab.envs import ManagerBasedConstraintRLEnv, ManagerBasedConstraintRLEnvCfg
 
 from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg

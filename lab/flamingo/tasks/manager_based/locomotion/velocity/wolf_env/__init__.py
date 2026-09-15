@@ -19,7 +19,7 @@ from . import (
 #########################################CoRL###################################################
 ################################################################################################
 gym.register(
-    id="Isaac-Velocity-Flat-Wolf-v1-ppo",
+    id="Isaac-Velocity-Flat-Wolf-v2-ppo",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -29,7 +29,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Wolf-v1-ppo-Play",
+    id="Isaac-Velocity-Flat-Wolf-v2-ppo-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -39,7 +39,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Rough-Wolf-v1-ppo",
+    id="Isaac-Velocity-Rough-Wolf-v2-ppo",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -49,7 +49,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Rough-Wolf-v1-ppo-Play",
+    id="Isaac-Velocity-Rough-Wolf-v2-ppo-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

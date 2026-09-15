@@ -19,6 +19,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with CO-RL.")
+parser.add_argument("--smoke_steps", type=int, default=0, help="Reset and step the environment, then exit without creating a learner.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
@@ -40,6 +41,8 @@ cli_args.add_co_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
+if args_cli.smoke_steps < 0:
+    parser.error("--smoke_steps must be nonnegative")
 
 # always enable cameras to record video
 if args_cli.video:
@@ -85,6 +88,7 @@ from scripts.co_rl.core.wrapper import CoRlPolicyRunnerCfg, CoRlVecEnvWrapper
 
 
 # Import extensions to set up environment tasks
+import lab.wolf.tasks  # noqa: F401
 import lab.flamingo.tasks  # noqa: F401  TODO: import orbit.<your_extension_name>
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -128,6 +132,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | Man
     print(f"Exact experiment name requested from command line: {log_dir}")
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+    if args_cli.smoke_steps:
+        try:
+            env.reset()
+            actions = torch.zeros(
+                (env.unwrapped.num_envs, env.unwrapped.action_manager.total_action_dim),
+                device=env.unwrapped.device,
+            )
+            for _ in range(args_cli.smoke_steps):
+                observations, rewards, _, _, _ = env.step(actions)
+                assert torch.isfinite(rewards).all(), "Non-finite rewards"
+                def check_finite(value):
+                    if isinstance(value, dict):
+                        for item in value.values():
+                            check_finite(item)
+                    elif isinstance(value, torch.Tensor):
+                        assert torch.isfinite(value).all(), "Non-finite observations"
+                check_finite(observations)
+            print(f"TRAIN_ENV_SMOKE_PASS task={args_cli.task} steps={args_cli.smoke_steps} actions={tuple(actions.shape)}", flush=True)
+        finally:
+            env.close()
+        return
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
